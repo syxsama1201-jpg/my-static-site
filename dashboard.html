@@ -1,0 +1,1299 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>安全库存管控系统 - 完整仓库版</title>
+    <!-- 引入 Sortable.js 库 -->
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            min-height: 100vh;
+            color: #fff;
+            overflow-x: hidden;
+        }
+
+        .container {
+            max-width: 1800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        /* 头部 */
+        .header {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 30px;
+            margin-bottom: 25px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .header h1 {
+            font-size: 2.2rem;
+            background: linear-gradient(90deg, #00d4ff, #7c3aed);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 8px;
+        }
+
+        .header p {
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 1rem;
+        }
+
+        /* KPI行通用样式 */
+        .kpi-row {
+            margin-bottom: 20px;
+        }
+
+        .kpi-row-title {
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 0.75rem;
+            margin-bottom: 10px;
+            letter-spacing: 1px;
+            font-weight: normal;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* 拖拽提示图标 */
+        .drag-hint {
+            font-size: 0.9rem;
+            opacity: 0.6;
+        }
+
+        .kpi-grid {
+            display: grid;
+            gap: 12px;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 16px;
+            border: 2px dashed rgba(255, 255, 255, 0.15);
+            transition: all 0.3s ease;
+        }
+
+        .kpi-grid:hover {
+            border-color: rgba(0, 212, 255, 0.3);
+            box-shadow: 0 0 20px rgba(0, 212, 255, 0.1);
+        }
+
+        .kpi-grid.sortable-ghost {
+            opacity: 0.4;
+            border-color: #00d4ff;
+        }
+
+        .kpi-grid.sortable-chosen {
+            border-color: #00d4ff;
+            box-shadow: 0 0 25px rgba(0, 212, 255, 0.25);
+        }
+
+        .kpi-grid.row1 {
+            grid-template-columns: repeat(5, 1fr);
+        }
+
+        .kpi-grid.row2 {
+            grid-template-columns: repeat(3, 1fr);
+            max-width: 60%;
+        }
+
+        /* KPI卡片通用样式 */
+        .kpi-card {
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 12px;
+            padding: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: all 0.3s ease;
+            cursor: grab;
+            position: relative;
+        }
+
+        .kpi-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
+            border-color: rgba(0, 212, 255, 0.3);
+        }
+
+        .kpi-card:active {
+            cursor: grabbing;
+        }
+
+        .kpi-card.sales {
+            border-top: 3px solid #00d4ff;
+        }
+
+        .kpi-card.supply {
+            border-top: 3px solid #10b981;
+        }
+
+        .kpi-card.locked {
+            border-top-color: #ef4444;
+            background: rgba(239, 68, 68, 0.08);
+        }
+
+        .kpi-card.warning {
+            border-top-color: #f59e0b;
+        }
+
+        /* 拖拽时的样式 */
+        .kpi-card.sortable-ghost {
+            opacity: 0.3;
+            background: rgba(0, 212, 255, 0.2);
+            border-color: #00d4ff;
+        }
+
+        .kpi-card.sortable-chosen {
+            box-shadow: 0 10px 30px rgba(0, 212, 255, 0.4);
+            border-color: #00d4ff;
+        }
+
+        /* 拖拽手柄图标 */
+        .card-drag-handle {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            font-size: 0.8rem;
+            opacity: 0;
+            color: rgba(255, 255, 255, 0.5);
+            transition: opacity 0.3s ease;
+            cursor: grab;
+        }
+
+        .kpi-card:hover .card-drag-handle {
+            opacity: 1;
+        }
+
+        .kpi-card-title {
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 0.75rem;
+            margin-bottom: 10px;
+            white-space: nowrap;
+            margin-right: 20px;
+        }
+
+        /* 配额卡片多行显示 */
+        .quota-display {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .quota-main {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #fff;
+        }
+
+        .quota-rmb {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #fbbf24;
+        }
+
+        .quota-usd {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #00d4ff;
+        }
+
+        /* 库存卡片显示 */
+        .inventory-display {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .inventory-pcs {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #fff;
+        }
+
+        .inventory-usd {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #00d4ff;
+        }
+
+        /* 销量卡片显示 */
+        .sales-display {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #00d4ff;
+        }
+
+        .sales-unit {
+            font-size: 0.8rem;
+            color: rgba(255, 255, 255, 0.5);
+            margin-left: 4px;
+        }
+
+        /* 月数卡片 */
+        .months-display {
+            font-size: 1.6rem;
+            font-weight: bold;
+        }
+
+        .months-display.normal {
+            color: #10b981;
+        }
+
+        .months-display.warning {
+            color: #f59e0b;
+        }
+
+        .months-display.danger {
+            color: #ef4444;
+        }
+
+        .months-unit {
+            font-size: 0.85rem;
+            color: rgba(255, 255, 255, 0.5);
+            margin-left: 4px;
+        }
+
+        /* 预警横幅 */
+        .alert-banner {
+            background: linear-gradient(135deg, rgba(239, 68, 68, 0.25), rgba(234, 88, 12, 0.25));
+            border: 2px solid #ef4444;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 25px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            animation: alertPulse 2s infinite;
+        }
+
+	.warning-banner {
+            background: linear-gradient(135deg, rgba(255, 192, 0, 0.25), rgba(254, 219, 97, 0.25));
+            border: 2px solid #ffc000;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 25px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+	.inform-banner {
+            background: linear-gradient(135deg, rgba(146, 208, 80, 0.25), rgba(173, 216, 141, 0.25));
+            border: 2px solid #92d050;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 25px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .alert-banner.hidden {
+            display: none;
+        }
+
+        @keyframes alertPulse {
+            0%, 100% { box-shadow: 0 0 15px rgba(239, 68, 68, 0.3); }
+            50% { box-shadow: 0 0 30px rgba(239, 68, 68, 0.5); }
+        }
+
+        .alert-icon {
+            font-size: 2.5rem;
+        }
+
+        .alert-content h3 {
+            color: #ef4444;
+            font-size: 1.1rem;
+            margin-bottom: 4px;
+        }
+
+        .alert-content p {
+            color: rgba(255, 255, 255, 0.85);
+            font-size: 0.85rem;
+            line-height: 1.5;
+        }
+
+        /* 主看板区域 */
+        .dashboard {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 20px;
+            padding: 25px;
+            margin-bottom: 25px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .pools-container {
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            gap: 30px;
+            flex-wrap: wrap;
+        }
+
+        .pool-wrapper {
+            flex: 1;
+            min-width: 400px;
+            max-width: 600px;
+        }
+
+        .pool-header {
+            text-align: center;
+            margin-bottom: 12px;
+        }
+
+        .pool-header h2 {
+            font-size: 1.3rem;
+            margin-bottom: 4px;
+        }
+
+        .pool-header .subtitle {
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 0.7rem;
+        }
+
+        .pool-container {
+            position: relative;
+            width: 100%;
+            height: 420px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 16px;
+            border: 3px solid rgba(255, 255, 255, 0.2);
+            overflow: hidden;
+            box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.3);
+        }
+
+        /* Y轴刻度 */
+        .y-axis {
+            position: absolute;
+            left: -55px;
+            top: 0;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 6px 0;
+        }
+
+        .y-axis-label {
+            color: rgba(255, 255, 255, 0.55);
+            font-size: 0.7rem;
+            text-align: right;
+            padding-right: 10px;
+            position: relative;
+        }
+
+        .y-axis-label::after {
+            content: '';
+            position: absolute;
+            right: -10px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 8px;
+            height: 2px;
+            background: rgba(255, 255, 255, 0.25);
+        }
+
+        /* 水位线 */
+        .safety-line {
+            position: absolute;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, #f59e0b, transparent);
+            z-index: 10;
+        }
+
+        .safety-line::before {
+            content: attr(data-label);
+            position: absolute;
+            right: 8px;
+            top: -18px;
+            color: #f59e0b;
+            font-size: 0.7rem;
+            font-weight: bold;
+            text-shadow: 0 0 8px rgba(245, 158, 11, 0.5);
+        }
+
+        /* 水池液体 */
+        .water {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: linear-gradient(180deg, rgba(59, 130, 246, 0.8) 0%, rgba(37, 99, 235, 0.9) 100%);
+            transition: height 0.6s ease, background 0.3s ease;
+            border-radius: 0 0 13px 13px;
+        }
+
+        .water::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 15px;
+            background: linear-gradient(180deg, rgba(255, 255, 255, 0.3) 0%, transparent 100%);
+            animation: wave 2s infinite;
+        }
+
+        @keyframes wave {
+            0%, 100% { transform: translateY(0) scaleY(1); }
+            50% { transform: translateY(-2px) scaleY(0.9); }
+        }
+
+        .water.warning {
+            background: linear-gradient(180deg, rgba(245, 158, 11, 0.8) 0%, rgba(234, 88, 12, 0.9) 100%);
+        }
+
+        .water.danger {
+            background: linear-gradient(180deg, rgba(239, 68, 68, 0.8) 0%, rgba(220, 38, 38, 0.9) 100%);
+            animation: dangerPulse 1s infinite;
+        }
+
+        @keyframes dangerPulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.75; }
+        }
+
+        /* 堆叠池 - 3个仓库 */
+        .stacked-pool {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            display: flex;
+            flex-direction: column-reverse;
+        }
+
+        .pool-segment {
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            transition: all 0.4s ease;
+            position: relative;
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .pool-segment:first-child {
+            border-radius: 0 0 13px 13px;
+        }
+
+        .pool-segment:hover {
+            filter: brightness(1.1);
+        }
+
+        /* 3个仓库的颜色 */
+        .pool-segment.fba {
+            background: linear-gradient(180deg, #0ea5e9 0%, #0284c7 100%);
+        }
+
+        .pool-segment.vc {
+            background: linear-gradient(180deg, #1e40af 0%, #1e3a8a 100%);
+        }
+
+        .pool-segment.supplier {
+            background: linear-gradient(180deg, #8b5cf6 0%, #7c3aed 100%);
+        }
+
+        .segment-content {
+            text-align: center;
+            color: #fff;
+            padding: 6px;
+            z-index: 2;
+        }
+
+        .segment-name {
+            font-size: 0.85rem;
+            font-weight: bold;
+            margin-bottom: 4px;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+        }
+
+        .segment-value {
+            font-size: 1rem;
+            font-weight: bold;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+        }
+
+        .segment-pcs {
+            font-size: 0.75rem;
+            opacity: 0.9;
+            margin-top: 2px;
+        }
+
+        .segment-usd {
+            font-size: 0.7rem;
+            opacity: 0.8;
+            margin-top: 2px;
+        }
+
+        .segment-percent {
+            font-size: 0.65rem;
+            opacity: 0.7;
+            margin-top: 2px;
+            background: rgba(0,0,0,0.2);
+            padding: 2px 6px;
+            border-radius: 8px;
+        }
+
+        /* 水池信息 */
+        .pool-info {
+            position: absolute;
+            top: 15%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            z-index: 20;
+            pointer-events: none;
+            background: rgba(0, 0, 0, 0.55);
+            padding: 15px 25px;
+            border-radius: 10px;
+            backdrop-filter: blur(5px);
+        }
+
+        .pool-info .total-label {
+            font-size: 0.85rem;
+            color: rgba(255, 255, 255, 0.8);
+            margin-bottom: 5px;
+        }
+
+        .pool-info .total-value {
+            font-size: 1.8rem;
+            font-weight: bold;
+            color: #00d4ff;
+        }
+
+        .pool-info .total-months {
+            font-size: 0.85rem;
+            color: #10b981;
+            margin-top: 5px;
+        }
+
+        /* 管道 */
+        .pipes-area {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            padding: 15px;
+            min-width: 120px;
+        }
+
+        .pipe-wrapper {
+            position: relative;
+            width: 70px;
+            height: 160px;
+        }
+
+        .pipe {
+            position: absolute;
+            background: linear-gradient(90deg, #6b7280, #9ca3af, #6b7280);
+            border-radius: 3px;
+            transition: all 0.3s ease;
+        }
+
+        .pipe.vertical {
+            width: 15px;
+            height: 60px;
+            left: 27px;
+            top: 50px;
+        }
+
+        .pipe.horizontal {
+            width: 70px;
+            height: 15px;
+            top: 72px;
+        }
+
+        .pipe.flowing {
+            background: linear-gradient(90deg, #6b7280, #00d4ff 50%, #6b7280);
+            background-size: 200% 100%;
+            animation: pipeFlow 1.5s infinite linear;
+        }
+
+        @keyframes pipeFlow {
+            0% { background-position: 0% 0%; }
+            100% { background-position: 200% 0%; }
+        }
+
+        .pipe.blocked {
+            background: linear-gradient(90deg, #6b7280, #ef4444, #6b7280);
+            animation: pipeBlocked 0.5s infinite;
+        }
+
+        @keyframes pipeBlocked {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+
+        /* 阀门 */
+        .valve {
+            position: absolute;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #10b981, #059669);
+            border: 2px solid #fff;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            z-index: 10;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.9rem;
+            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3);
+        }
+
+        .valve:hover {
+            transform: scale(1.1);
+        }
+
+        .valve.closed {
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+            box-shadow: 0 0 15px rgba(239, 68, 68, 0.6);
+            animation: valveWarn 1s infinite;
+        }
+
+        @keyframes valveWarn {
+            0%, 100% { box-shadow: 0 0 8px rgba(239, 68, 68, 0.5); }
+            50% { box-shadow: 0 0 20px rgba(239, 68, 68, 0.8); }
+        }
+
+        .valve.inflow {
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+
+        .valve.transfer {
+            top: 65px;
+            right: -16px;
+        }
+
+        /* 气泡 */
+        .bubble {
+            position: absolute;
+            bottom: -12px;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.2);
+            animation: rise 4s infinite ease-in;
+        }
+
+        @keyframes rise {
+            0% {
+                transform: translateY(0) translateX(0) scale(1);
+                opacity: 0.3;
+            }
+            50% {
+                transform: translateY(-120px) translateX(10px) scale(0.8);
+                opacity: 0.2;
+            }
+            100% {
+                transform: translateY(-420px) translateX(-8px) scale(0.5);
+                opacity: 0;
+            }
+        }
+
+        /* 仓库明细表格 */
+        .warehouse-section {
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 15px;
+            padding: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            margin-top: 20px;
+        }
+
+        .warehouse-section h3 {
+            color: #00d4ff;
+            margin-bottom: 15px;
+            font-size: 1rem;
+        }
+
+        .warehouse-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+        }
+
+        .warehouse-card {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            padding: 15px;
+            border-left: 4px solid;
+        }
+
+        .warehouse-card.fba {
+            border-left-color: #0ea5e9;
+        }
+
+        .warehouse-card.vc {
+            border-left-color: #1e40af;
+        }
+
+        .warehouse-card.supplier {
+            border-left-color: #8b5cf6;
+        }
+
+        .warehouse-card h4 {
+            font-size: 0.9rem;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .warehouse-card .detail-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.85rem;
+            margin-bottom: 6px;
+            padding-bottom: 6px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .warehouse-card .detail-row:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+            padding-bottom: 0;
+        }
+
+        .warehouse-card .label {
+            color: rgba(255, 255, 255, 0.5);
+        }
+
+        .warehouse-card .value {
+            color: #fff;
+            font-weight: bold;
+        }
+
+        /* 图例 */
+        .legend {
+            display: flex;
+            gap: 25px;
+            justify-content: center;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 0.8rem;
+        }
+
+        .legend-color {
+            width: 18px;
+            height: 12px;
+            border-radius: 3px;
+        }
+
+        .legend-color.fba {
+            background: #0ea5e9;
+        }
+
+        .legend-color.vc {
+            background: #1e40af;
+        }
+
+        .legend-color.supplier {
+            background: #8b5cf6;
+        }
+
+        /* 提示信息 */
+        .drag-tip {
+            text-align: center;
+            padding: 8px;
+            color: rgba(255, 255, 255, 0.4);
+            font-size: 0.75rem;
+            margin-bottom: 5px;
+        }
+
+        /* 响应式 */
+        @media (max-width: 1400px) {
+            .kpi-grid.row1 {
+                grid-template-columns: repeat(3, 1fr);
+            }
+
+            .kpi-grid.row2 {
+                max-width: 100%;
+                grid-template-columns: repeat(3, 1fr);
+            }
+
+            .warehouse-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .pools-container {
+                flex-direction: column;
+                align-items: center;
+            }
+
+            .pipes-area {
+                transform: rotate(90deg);
+                height: 70px;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .kpi-grid.row1,
+            .kpi-grid.row2 {
+                grid-template-columns: 1fr;
+            }
+
+            .header h1 {
+                font-size: 1.6rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- 头部 -->
+        <div class="header">
+            <h1>安全库存管控系统</h1>
+            <p>库存对应销售额可视化 | 额度管控 | 仓库细分分析</p>
+            <p>更新时间：2026-01-29 16:04 (CST)</p>
+        </div>
+
+        <!-- 第一排：销售与发货（5列） -->
+        <div class="kpi-row">
+            <div class="kpi-row-title">
+                📊 销售与发货
+                <span class="drag-hint">💡 提示：按住卡片可拖动换位</span>
+            </div>
+            <div class="kpi-grid row1" id="row1Grid">
+                <!-- 本月可发货额度 -->
+                <div class="kpi-card sales" data-id="shipment">
+                    <span class="card-drag-handle">⋮⋮</span>
+                    <div class="kpi-card-title">本月可发货额度</div>
+                    <div class="quota-display">
+                        <div class="quota-main">1.0<span class="sales-unit">万pcs</span></div>
+                        <div class="quota-rmb">¥30万 (商品成本)</div>
+                        <div class="quota-usd">$19万 (销售额)</div>
+                    </div>
+                </div>
+
+                <!-- 海外仓库存对应销售额 -->
+                <div class="kpi-card sales" data-id="overseas">
+                    <span class="card-drag-handle">⋮⋮</span>
+                    <div class="kpi-card-title">海外库存情况</div>
+                    <div class="inventory-display">
+                        <div class="inventory-pcs">57.8<span class="sales-unit">万pcs</span>
+                            <div class="quota-rmb">¥1734万 (商品成本)</div>
+                        </div>
+                        <div class="inventory-usd">$1098万 (销售额)</div>
+                    </div>
+                </div>
+
+                <!-- 月均销售额 -->
+                <div class="kpi-card sales" data-id="monthly">
+                    <span class="card-drag-handle">⋮⋮</span>
+                    <div class="kpi-card-title">预估月均销售额</div>
+                    <div class="sales-display">
+                        $127<span class="sales-unit">万</span>
+                    </div>
+                </div>
+
+                <!-- 加权日均销量 -->
+                <div class="kpi-card sales" data-id="daily">
+                    <span class="card-drag-handle">⋮⋮</span>
+                    <div class="kpi-card-title">日均销量</div>
+                    <div class="sales-display">
+                        2234<span class="sales-unit">pcs/日</span>
+                    </div>
+                </div>
+
+                <!-- 海外可售几个月 -->
+                <div class="kpi-card sales" data-id="available">
+                    <span class="card-drag-handle">⋮⋮</span>
+                    <div class="kpi-card-title">海外可售月数</div>
+                    <div class="months-display">8.8个月</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 第二排：采购与供应（3列） -->
+        <div class="kpi-row">
+            <div class="kpi-row-title">
+                🏭 采购与供应
+                <span class="drag-hint">💡 提示：按住卡片可拖动换位</span>
+            </div>
+            <div class="kpi-grid row2" id="row2Grid">
+                <!-- 本月可采购额度 -->
+                <div class="kpi-card supply" data-id="po">
+                    <span class="card-drag-handle">⋮⋮</span>
+                    <div class="kpi-card-title">本月可采购额度</div>
+                    <div class="quota-display">
+                        <div class="inventory-pcs">0.5<span class="sales-unit">万pcs</span></div>
+                        <div class="quota-rmb">¥17万 (商品成本)</div>
+                        <div class="quota-usd">$9.5万 (销售额)</div>
+                    </div>
+                </div>
+
+                <!-- 供应商库存对应销售额 -->
+                <div class="kpi-card supply" data-id="supplier">
+                    <span class="card-drag-handle">⋮⋮</span>
+                    <div class="kpi-card-title">供应商仓库存</div>
+                    <div class="inventory-display">
+                        <div class="inventory-pcs">38.9<span class="sales-unit">万pcs</span></div>
+                        <div class="quota-rmb">¥1103万 (商品成本)</div>
+                        <div class="inventory-usd">$739万 (销售额)</div>
+                    </div>
+                </div>
+
+                <!-- 供应商仓可售 -->
+                <div class="kpi-card supply" data-id="supplier-monthly">
+                    <span class="card-drag-handle">⋮⋮</span>
+                    <div class="kpi-card-title">供应商可售</div>
+                    <div class="months-display">5.6个月</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 预警横幅 -->
+        <div class="alert-banner" id="alertBanner">
+            <div class="alert-icon">🚨</div>
+            <div class="alert-content">
+                <h3>海外库存已超上限，停止发货；供应商仓库存已超预警，停止下单</h3>
+                <p>
+                    海外仓库存可售8.8个月（安全库存：4个月）<br>
+                    供应商仓库存可售5.6个月（安全库存：2个月）<br>
+                    停止发货,停止下单
+                </p>
+            </div>
+        </div>
+
+        <!-- 主看板 -->
+        <div class="dashboard">
+            <h3 style="color: #00d4ff; margin-bottom: 20px; text-align: center; font-size: 1.1rem;">
+                全库存对应销售额看板
+            </h3>
+
+            <div class="pools-container">
+                <!-- 供应商库存池 -->
+                <div class="pool-wrapper">
+                    <div class="pool-header">
+                        <h2>🏭 供应商库存对应销售额</h2>
+                        <div class="subtitle">上游入水口：采购生产 | 下游出水口：发往海外</div>
+                    </div>
+                    <div class="pool-container">
+                        <div class="y-axis">
+                            <span class="y-axis-label">12个月</span>
+                            <span class="y-axis-label">10个月</span>
+                            <span class="y-axis-label">8个月</span>
+                            <span class="y-axis-label">6个月</span>
+                            <span class="y-axis-label">4个月</span>
+                            <span class="y-axis-label">2个月</span>
+                            <span class="y-axis-label">0</span>
+                        </div>
+
+                        <div class="safety-line" style="bottom: 33.33%;" data-label="安全水位 2个月"></div>
+
+                        <div class="water danger" id="supplierWater" style="height: 394.3px;">
+                            <div class="bubble" style="left: 10%; animation-delay: 0s;"></div>
+                            <div class="bubble" style="left: 30%; animation-delay: 1s;"></div>
+                            <div class="bubble" style="left: 55%; animation-delay: 2s;"></div>
+                        </div>
+
+                        <div class="pool-info">
+                            <div class="total-label">供应商库存对应销售额</div>
+                            <div class="total-value">$739万 (销售额)</div>
+                            <div class="total-months">5.6个月</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 海外库存池（2个仓库堆叠） -->
+                <div class="pool-wrapper">
+                    <div class="pool-header">
+                        <h2>🌍 海外库存对应销售额</h2>
+                        <div class="subtitle">FBA仓 + 三方海外仓 | 终端销售库存</div>
+                    </div>
+                    <div class="pool-container">
+                        <div class="y-axis">
+                            <span class="y-axis-label">12个月</span>
+                            <span class="y-axis-label">10个月</span>
+                            <span class="y-axis-label">8个月</span>
+                            <span class="y-axis-label">6个月</span>
+                            <span class="y-axis-label">4个月</span>
+                            <span class="y-axis-label">2个月</span>
+                            <span class="y-axis-label">0</span>
+                        </div>
+
+                        <div class="safety-line" style="bottom: 33.33%;" data-label="安全水位 4个月"></div>
+
+                        <!-- 3个仓库堆叠 -->
+                        <div class="stacked-pool" id="overseasStackedPool">
+                            <!-- FBA仓（顶层） -->
+                            <div class="pool-segment fba" style="height:38.5px">
+                                <div class="segment-content">
+                                    <div class="segment-name">📦 FBA仓</div>
+                                    <div class="segment-value">$138万</div>
+                                    <div class="segment-pcs">7.3万pcs</div>
+                                    <div class="segment-percent">8%</div>
+                                </div>
+                            </div>
+
+                            <!-- VC仓（中层） -->
+                            <div class="pool-segment vc" style="height:255.5px">
+                                <div class="segment-content">
+                                    <div class="segment-name">🏭 海外仓</div>
+                                    <div class="segment-value">$929万</div>
+                                    <div class="segment-pcs">48.9万pcs</div>
+                                    <div class="segment-percent">51%</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="pool-info">
+                            <div class="total-label">海外库存对应销售额</div>
+                            <div class="total-value">$1098万 (销售额)</div>
+                            <div class="total-months">8.8个月</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 图例 -->
+            <div class="legend">
+                <div class="legend-item">
+                    <div class="legend-color fba"></div>
+                    <span>FBA仓-$434万（22.8万pcs）-30.9%</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color vc"></div>
+                    <span>海外仓-$936万（49.3万pcs）-66.7%</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 3个仓库明细 -->
+        <div class="warehouse-section">
+            <h3>📋 3个仓库库存明细</h3>
+            <div class="warehouse-grid">
+ 		<!-- 供应商仓 -->
+                <div class="warehouse-card supplier">
+                    <h4>🚚 供应商仓</h4>
+                    <div class="detail-row">
+                        <span class="label">库存对应销售额</span>
+                        <span class="value">$739万 (销售额)</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="label">库存件数</span>
+                        <span class="value">38.9万pcs</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="label">可售月数</span>
+                        <span class="value">5.8个月</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="label">占比</span>
+                        <span class="value">40%</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="label">状态</span>
+                        <span class="value" style="color: #ef4444;">超限</span>
+                    </div>
+                </div>
+
+                <!-- FBA仓 -->
+                <div class="warehouse-card fba">
+                    <h4>📦 FBA仓</h4>
+                    <div class="detail-row">
+                        <span class="label">库存对应销售额</span>
+                        <span class="value">$138万</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="label">库存件数</span>
+                        <span class="value">7.3万pcs</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="label">可售月数</span>
+                        <span class="value">1.1个月</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="label">占比</span>
+                        <span class="value">8%</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="label">状态</span>
+                        <span class="value" style="color: #10b981;">正常</span>
+                    </div>
+                </div>
+
+                <!-- VC仓 -->
+                <div class="warehouse-card vc">
+                    <h4>🏭 海外仓</h4>
+                    <div class="detail-row">
+                        <span class="label">库存对应销售额</span>
+                        <span class="value">$929万</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="label">库存件数</span>
+                        <span class="value">48.9万pcs</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="label">可售月数</span>
+                        <span class="value">7.3个月</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="label">占比</span>
+                        <span class="value">51%</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="label">状态</span>
+                        <span class="value" style="color: #ef4444;">超限</span>
+                    </div>
+                </div>
+
+               
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 初始化 Sortable.js 拖拽功能
+        document.addEventListener('DOMContentLoaded', function() {
+            // 初始化第一排（5个卡片）
+            const row1Grid = document.getElementById('row1Grid');
+            const sortableRow1 = new Sortable(row1Grid, {
+                animation: 300,
+                ghostClass: 'sortable-ghost',
+                chosenClass: 'sortable-chosen',
+                dragClass: 'sortable-drag',
+                easing: 'cubic-bezier(1, 0, 0, 1)',
+                onEnd: function(evt) {
+                    console.log('Row1 卡片位置已更改');
+                    saveRow1Layout();
+                },
+                onMove: function(evt) {
+                    return true;
+                }
+            });
+
+            // 初始化第二排（3个卡片）
+            const row2Grid = document.getElementById('row2Grid');
+            const sortableRow2 = new Sortable(row2Grid, {
+                animation: 300,
+                ghostClass: 'sortable-ghost',
+                chosenClass: 'sortable-chosen',
+                dragClass: 'sortable-drag',
+                easing: 'cubic-bezier(1, 0, 0, 1)',
+                onEnd: function(evt) {
+                    console.log('Row2 卡片位置已更改');
+                    saveRow2Layout();
+                },
+                onMove: function(evt) {
+                    return true;
+                }
+            });
+
+            // 保存 Row1 布局到本地存储
+            function saveRow1Layout() {
+                const cards = row1Grid.querySelectorAll('.kpi-card');
+                const order = Array.from(cards).map(card => card.dataset.id);
+                try {
+                    localStorage.setItem('row1Layout', JSON.stringify(order));
+                } catch (e) {
+                    console.warn('无法保存布局:', e);
+                }
+            }
+
+            // 保存 Row2 布局到本地存储
+            function saveRow2Layout() {
+                const cards = row2Grid.querySelectorAll('.kpi-card');
+                const order = Array.from(cards).map(card => card.dataset.id);
+                try {
+                    localStorage.setItem('row2Layout', JSON.stringify(order));
+                } catch (e) {
+                    console.warn('无法保存布局:', e);
+                }
+            }
+
+            // 从本地存储恢复 Row1 布局
+            function restoreRow1Layout() {
+                try {
+                    const savedLayout = localStorage.getItem('row1Layout');
+                    if (savedLayout) {
+                        const order = JSON.parse(savedLayout);
+                        const cards = Array.from(row1Grid.querySelectorAll('.kpi-card'));
+
+                        // 创建文档片段
+                        const fragment = document.createDocumentFragment();
+
+                        order.forEach(id => {
+                            const card = cards.find(c => c.dataset.id === id);
+                            if (card) {
+                                fragment.appendChild(card);
+                            }
+                        });
+
+                        // 将剩余的卡片添加到末尾
+                        cards.forEach(card => {
+                            if (!order.includes(card.dataset.id)) {
+                                fragment.appendChild(card);
+                            }
+                        });
+
+                        row1Grid.appendChild(fragment);
+                    }
+                } catch (e) {
+                    console.warn('无法恢复 Row1 布局:', e);
+                }
+            }
+
+            // 从本地存储恢复 Row2 布局
+            function restoreRow2Layout() {
+                try {
+                    const savedLayout = localStorage.getItem('row2Layout');
+                    if (savedLayout) {
+                        const order = JSON.parse(savedLayout);
+                        const cards = Array.from(row2Grid.querySelectorAll('.kpi-card'));
+
+                        // 创建文档片段
+                        const fragment = document.createDocumentFragment();
+
+                        order.forEach(id => {
+                            const card = cards.find(c => c.dataset.id === id);
+                            if (card) {
+                                fragment.appendChild(card);
+                            }
+                        });
+
+                        // 将剩余的卡片添加到末尾
+                        cards.forEach(card => {
+                            if (!order.includes(card.dataset.id)) {
+                                fragment.appendChild(card);
+                            }
+                        });
+
+                        row2Grid.appendChild(fragment);
+                    }
+                } catch (e) {
+                    console.warn('无法恢复 Row2 布局:', e);
+                }
+            }
+
+            // 恢复布局
+            restoreRow1Layout();
+            restoreRow2Layout();
+        });
+    </script>
+</body>
+</html>
